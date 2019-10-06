@@ -28,17 +28,28 @@ def fetch_one_page(pgnum):
     urlretrieve(CARS_URL+str(pgnum), page.name)
     return page
 
+def fetch_url(addr):
+    page = NamedTemporaryFile()
+    urlretrieve(addr, page.name)
+    return page
+
 
 def get_car_info_from_div(div):
     block_divs = div.find_all('div')
     car_id = get_car_id(block_divs)
     car_name = get_car_name(block_divs)
     car_info = get_car_info(block_divs)
-    car_price = get_car_price(block_divs)
     car_link = get_car_link(block_divs)
+    car = fetch_url(car_link)
+    car_divs, car_p = parse_car_page(car)
+    car_act_price, car_start_price = get_car_price(car_divs)
     auction_type = get_car_auction_type(block_divs)
-    #name = get_cinema_caption(block_divs)
-    return {'id': car_id, 'name': car_name, 'price': car_price, 'link': car_link, 'type': auction_type, 'info': car_info}
+    d_start = get_date_start(car_p)
+    d_end = get_date_end(car_p)
+    #d_start =
+    #d_end = 
+    #trade_place = 
+    return {'id': car_id, 'name': car_name, 'act_price': car_act_price, 'start_price': car_start_price, 'start': d_start, 'end':d_end, 'link': car_link, 'type': auction_type, 'info': car_info}
 
 
 def get_cars_from_torgi(divs):
@@ -46,6 +57,19 @@ def get_cars_from_torgi(divs):
                                          'lot-card-wrapper' in div.get('class'), divs))
     cars = list(map(lambda div: get_car_info_from_div(div), car_divs))
     return cars
+
+def get_date_start(p_tags):
+            if p_tags[4].text[0:6] == 'Начало':
+                return p_tags[4].text[21:31]
+            if p_tags[5].text[0:6] == 'Начало':
+                return p_tags[5].text[21:31]
+
+def get_date_end(p_tags):
+            if p_tags[5].text[0:5] == 'Конец':
+                return p_tags[5].text[20:30]
+            if p_tags[6].text[0:5] == 'Конец':
+                return p_tags[6].text[20:30]
+
 
 
 def get_car_id(div_tags):
@@ -77,10 +101,14 @@ def get_car_info(div_tags):
                      
 
 def get_car_price(div_tags):
-    for car_div in div_tags:
-        if 'class' in car_div.attrs and \
-                        'new-component1__price' in car_div.get('class'):
-            return car_div.p.string
+    for price_div in div_tags:
+        if 'class' in price_div.attrs and \
+                        'new-component1__price' in price_div.get('class'):
+            price_list = list(price_div.p)
+            if len(price_list)>1:
+                return price_list[0], price_list[1]
+            else:
+                return price_list[0], price_list[0]
 
 def get_car_auction_type(div_tags):
     for car_div in div_tags:
@@ -104,6 +132,12 @@ def parse_page(raw_html_file):
     li_tags = soup.find_all('li')
     return div_tags, li_tags
 
+def parse_car_page(raw_html_file):
+    soup = BeautifulSoup(raw_html_file.read(), 'html.parser')
+    div_tags = soup.find_all('div')
+    p_tags = soup.find_all('p')
+    return div_tags, p_tags
+
 
 def get_page_count(divs):
     pages_list = list(filter(lambda li: 'class' in li.attrs and 'page-item' in li.get('class'), divs))
@@ -124,17 +158,20 @@ def put_to_excel(cars):
     ws = workbook['LastDownload']
     target = workbook.copy_worksheet(ws)
     target.title = 'Download'+str(datetime.date(datetime.today()))
-    for row in ws['A2:F'+str(ws.max_row)]:
+    for row in ws['A2:I'+str(ws.max_row)]:
         for cell in row:
             cell.value = None
     row = 2 
     for car in cars:
         ws.cell(row=row, column=1, value=car['id'])
         ws.cell(row=row, column=2, value=car['name'])
-        ws.cell(row=row, column=3, value=car['price'])
-        ws.cell(row=row, column=4, value=car['link'])
-        ws.cell(row=row, column=5, value=car['type'])
-        ws.cell(row=row, column=6, value=car['info'])
+        ws.cell(row=row, column=3, value=car['act_price'])
+        ws.cell(row=row, column=4, value=car['start_price'])
+        ws.cell(row=row, column=5, value=car['start'])
+        ws.cell(row=row, column=6, value=car['end'])
+        ws.cell(row=row, column=7, value=car['link'])
+        ws.cell(row=row, column=8, value=car['type'])
+        ws.cell(row=row, column=9, value=car['info'])
         row = row +1
     workbook.save(filename)
     workbook.close()
@@ -144,17 +181,20 @@ def put_new_to_excel(cars):
     filename = os.path.abspath('Trades.xlsx')
     workbook = excel.load_workbook(filename)
     ws = workbook['New']
-    for row in ws['A2:F'+str(ws.max_row)]:
+    for row in ws['A2:I'+str(ws.max_row)]:
         for cell in row:
             cell.value = None
     row = 2 
     for car in cars:
         ws.cell(row=row, column=1, value=car['id'])
         ws.cell(row=row, column=2, value=car['name'])
-        ws.cell(row=row, column=3, value=car['price'])
-        ws.cell(row=row, column=4, value=car['link'])
-        ws.cell(row=row, column=5, value=car['type'])
-        ws.cell(row=row, column=6, value=car['info'])
+        ws.cell(row=row, column=3, value=car['act_price'])
+        ws.cell(row=row, column=4, value=car['start_price'])
+        ws.cell(row=row, column=5, value=car['start'])
+        ws.cell(row=row, column=6, value=car['end'])
+        ws.cell(row=row, column=7, value=car['link'])
+        ws.cell(row=row, column=8, value=car['type'])
+        ws.cell(row=row, column=9, value=car['info'])
         row = row +1
     workbook.save(filename)
     workbook.close()
