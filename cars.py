@@ -104,11 +104,11 @@ def get_car_price(div_tags):
     for price_div in div_tags:
         if 'class' in price_div.attrs and \
                         'new-component1__price' in price_div.get('class'):
-            price_list = list(price_div.p)
-            if len(price_list)>1:
-                return price_list[0], price_list[1]
+            price_list = list(price_div)
+            if len(price_list)>3:
+                return price_list[1].text, price_list[3].text
             else:
-                return price_list[0], price_list[0]
+                return price_list[1].text, price_list[1].text,
 
 def get_car_auction_type(div_tags):
     for car_div in div_tags:
