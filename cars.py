@@ -8,13 +8,14 @@ from tempfile import NamedTemporaryFile
 import openpyxl as excel
 import os
 from datetime import datetime, date, time
+import re
 
 CARS_URL = 'https://xn----etbpba5admdlad.xn--p1ai/bankrot?categorie_childs%5B0%5D=2&regions%5B0%5D=50&regions%5B1%5D=77&section=%D0%91%D0%B0%D0%BD%D0%BA%D1%80%D0%BE%D1%82%D1%81%D1%82%D0%B2%D0%BE&forms%5B0%5D=public&forms%5B1%5D=auction&page='
 
 CARS_EN_URL = 'https://xn----etbpba5admdlad.xn--p1ai/bankrot?categorie_childs%5B0%5D=2&regions%5B0%5D=50&regions%5B1%5D=77&section=%D0%91%D0%B0%D0%BD%D0%BA%D1%80%D0%BE%D1%82%D1%81%D1%82%D0%B2%D0%BE&forms%5B0%5D=public&forms%5B1%5D=auction&page=1'
 
+vinregex = '[0-9abcdefghjklmnprstuvwxyzABCDEFGHJKLMNPRSTUVWXYZ]{17,20}'
 
-#PAGE_URL = 'https://www.afisha.ru'
 
  #-*- coding: utf-8 -*-
 
@@ -46,11 +47,34 @@ def get_car_info_from_div(div):
     auction_type = get_car_auction_type(block_divs)
     d_start = get_date_start(car_p)
     d_end = get_date_end(car_p)
+    vins = get_vin(car_info, car_name)
     #d_start =
     #d_end = 
     #trade_place = 
-    return {'id': car_id, 'name': car_name, 'act_price': car_act_price, 'start_price': car_start_price, 'start': d_start, 'end':d_end, 'link': car_link, 'type': auction_type, 'info': car_info}
+    return {'id': car_id, 'name': car_name, 'act_price': car_act_price, 'start_price': car_start_price, 'start': d_start, 'end':d_end, 'link': car_link, 'type': auction_type, 'vins':vins, 'info': car_info}
 
+def get_vin(car_info, car_name):
+    text3 = car_info+' '+car_name
+    vins = []
+    replacer = ['А', 'A', 'В', 'B', 'Е', 'E', 'К', 'K', 'М', 'M','Н', 'H','О', 'O','Р', 'P','С', 'C','Т', 'T', 'У', 'Y', 'Х', 'X']
+    ru = []
+    en = []
+    text3.upper()
+    i = 0
+    while i < len(replacer)-1:
+        ru.append(replacer[i])
+        en.append(replacer[i+1])
+        i = i+2
+    i = 0
+    while i < len(text3):
+        if text3[i] in ru:
+            text3 = text3[0:i]+str(en[ru.index(text3[i])])+text3[i+1:]
+        i=i+1
+    res = re.findall(vinregex, text3)
+    for vin in res:
+        if vin not in vins:
+            vins.append(vin)
+    return str(vins)
 
 def get_cars_from_torgi(divs):
     car_divs = list(filter(lambda div: 'class' in div.attrs and
@@ -158,7 +182,7 @@ def put_to_excel(cars):
     ws = workbook['LastDownload']
     target = workbook.copy_worksheet(ws)
     target.title = 'Download'+str(datetime.date(datetime.today()))
-    for row in ws['A2:I'+str(ws.max_row)]:
+    for row in ws['A2:J'+str(ws.max_row)]:
         for cell in row:
             cell.value = None
     row = 2 
@@ -171,7 +195,8 @@ def put_to_excel(cars):
         ws.cell(row=row, column=6, value=car['end'])
         ws.cell(row=row, column=7, value=car['link'])
         ws.cell(row=row, column=8, value=car['type'])
-        ws.cell(row=row, column=9, value=car['info'])
+        ws.cell(row=row, column=9, value=car['vins'])
+        ws.cell(row=row, column=10, value=car['info'])
         row = row +1
     workbook.save(filename)
     workbook.close()
@@ -181,7 +206,7 @@ def put_new_to_excel(cars):
     filename = os.path.abspath('Trades.xlsx')
     workbook = excel.load_workbook(filename)
     ws = workbook['New']
-    for row in ws['A2:I'+str(ws.max_row)]:
+    for row in ws['A2:J'+str(ws.max_row)]:
         for cell in row:
             cell.value = None
     row = 2 
@@ -194,7 +219,8 @@ def put_new_to_excel(cars):
         ws.cell(row=row, column=6, value=car['end'])
         ws.cell(row=row, column=7, value=car['link'])
         ws.cell(row=row, column=8, value=car['type'])
-        ws.cell(row=row, column=9, value=car['info'])
+        ws.cell(row=row, column=9, value=car['vins'])
+        ws.cell(row=row, column=10, value=car['info'])
         row = row +1
     workbook.save(filename)
     workbook.close()
