@@ -1,3 +1,4 @@
+from __future__ import print_function
 import requests
 import sys
 import ssl
@@ -9,6 +10,16 @@ import openpyxl as excel
 import os
 from datetime import datetime, date, time
 import re
+import pickle
+import os.path
+from googleapiclient.discovery import build
+from google_auth_oauthlib.flow import InstalledAppFlow
+from google.auth.transport.requests import Request
+
+# If modifying these scopes, delete the file token.pickle.
+SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
+
+TRADES_SPREADSHEET_ID = '1bevgPBYdh6-hHqFGKQ6o7cBLsFaY15yHL9PLQPtd3ks'
 
 CARS_URL = 'https://xn----etbpba5admdlad.xn--p1ai/bankrot?categorie_childs%5B0%5D=2&regions%5B0%5D=50&regions%5B1%5D=77&section=%D0%91%D0%B0%D0%BD%D0%BA%D1%80%D0%BE%D1%82%D1%81%D1%82%D0%B2%D0%BE&forms%5B0%5D=public&forms%5B1%5D=auction&page='
 
@@ -18,6 +29,84 @@ vinregex = '[0-9abcdefghjklmnprstuvwxyzABCDEFGHJKLMNPRSTUVWXYZ]{17,20}'
 
 
  #-*- coding: utf-8 -*-
+
+
+def google_auth():
+    """Shows basic usage of the Sheets API.
+    Prints values from a sample spreadsheet.
+    """
+    creds = None
+    # The file token.pickle stores the user's access and refresh tokens, and is
+    # created automatically when the authorization flow completes for the first
+    # time.
+    if os.path.exists('token.pickle'):
+        with open('token.pickle', 'rb') as token:
+            creds = pickle.load(token)
+    # If there are no (valid) credentials available, let the user log in.
+    if not creds or not creds.valid:
+        if creds and creds.expired and creds.refresh_token:
+            creds.refresh(Request())
+        else:
+            flow = InstalledAppFlow.from_client_secrets_file(
+                'credentials.json', SCOPES)
+            creds = flow.run_local_server(port=0)
+        # Save the credentials for the next run
+        with open('token.pickle', 'wb') as token:
+            pickle.dump(creds, token)
+
+    service = build('sheets', 'v4', credentials=creds)
+    return service
+
+def get_sheet(service, sheet, srange):
+    # Call the Sheets API
+
+    resrange = sheet+'!'+srange
+
+    sheet = service.spreadsheets()
+    result = sheet.values().get(spreadsheetId=TRADES_SPREADSHEET_ID,
+                                range=resrange).execute()
+    values = result.get('values', [])
+    return values
+ #   if not values:
+ #       print('No data found.')
+ #   else:
+ #       print('Name, Major:')
+ #       for row in values:
+ #           # Print columns A and E, which correspond to indices 0 and 4.
+ #           print('%s, %s' % (row[1], row[2]))
+
+def clear(sheet, service):
+    clear = [' ',' ',' ',' ',' ',' ',' ',' ',' ',' ']
+    body = {
+    'range' : sheet+'!'+'A2:J',
+    }
+    result = service.spreadsheets().values().clear(spreadsheetId=TRADES_SPREADSHEET_ID, range=sheet+'!'+'A2:J', body=body)
+    result.execute()
+
+def write_sheet(service, sheet, srange, data):
+    resrange = sheet+'!'+srange
+    sheet = service.spreadsheets()
+    values = []
+    for car in data:
+        value = []
+        value.append(car['id'])
+        value.append(car['name'])
+        value.append(car['act_price'])
+        value.append(car['start_price'])
+        value.append(car['start'])
+        value.append(car['end'])
+        value.append(car['link'])
+        value.append(car['type'])
+        value.append(car['vins'])
+        value.append(car['info'])
+        values.append(value)
+    body = {
+    'values': values,
+    'range' : resrange,
+    'majorDimension':'ROWS'
+    }
+    result = service.spreadsheets().values().update(spreadsheetId=TRADES_SPREADSHEET_ID, range=resrange, valueInputOption='RAW', body=body)
+    result.execute()
 
 def fetch_torgi_page():
     page = NamedTemporaryFile()
@@ -138,7 +227,10 @@ def get_car_auction_type(div_tags):
     for car_div in div_tags:
         if 'class' in car_div.attrs and \
                         'new-component1' in car_div.get('class'):
-            return car_div.a.img.get('data-tooltip')
+            try:
+                return car_div.a.img.get('data-tooltip')
+            except AttributeError:
+                return ""
 
 def parse_cars_list(raw_html_file):
     soup = BeautifulSoup(raw_html_file.read(), 'html.parser')
@@ -227,14 +319,14 @@ def put_new_to_excel(cars):
 
 
 
-def read_existing_lots():
-    filename = os.path.abspath('Trades.xlsx')
-    workbook = excel.load_workbook(filename)
+def read_existing_lots(service):
+    rows = get_sheet(service, 'LastDownload', 'A2:A')
     id = []
-    ws = workbook['LastDownload']
-    for row in ws['A2:A'+str(ws.max_row)]:
-        for cell in row:
-            id.append(cell.value)
+    for row in rows:
+        i = 0
+        while i < len(row):
+            id.append(row[i])
+            i = i+1
     return id
 
 def new_cars(cars, ids):
@@ -253,6 +345,8 @@ if __name__ == '__main__':
     html_page_name = fetch_torgi_page()
     page_div_tags, page_li_tags = parse_page(html_page_name)
     pages_count = get_page_count(page_li_tags)
+    serv = google_auth()
+    clear('New', serv)
     print('Pages:'+str(pages_count))
     i = 1
     cars=[]
@@ -260,8 +354,12 @@ if __name__ == '__main__':
         print('Page: '+str(i))
         cars.extend(get_cars_on_page(i))
         i = i+1
-    ids = read_existing_lots()
+    ids = read_existing_lots(serv)
     mycars = new_cars(cars, ids)
-    put_new_to_excel(mycars)
-    put_to_excel(cars)
+    clear('New', serv)
+    write_sheet(serv, 'New', 'A2:J'+str(len(mycars)+1), mycars)
+    clear('LastDownload',serv)
+    write_sheet(serv, 'LastDownload', 'A2:J'+str(len(cars)+1), cars)
+    #put_new_to_excel(mycars)
+    #put_to_excel(cars)
     print('Finished!')
