@@ -228,7 +228,7 @@ def get_car_auction_type(div_tags):
         if 'class' in car_div.attrs and \
                         'new-component1' in car_div.get('class'):
             try:
-                return car_div.a.img.get('data-tooltip')
+                return str(car_div.a.svg.get('class'))
             except AttributeError:
                 return ""
 
