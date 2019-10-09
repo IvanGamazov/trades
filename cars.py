@@ -9,6 +9,7 @@ from tempfile import NamedTemporaryFile
 import openpyxl as excel
 import os
 from datetime import datetime, date, time
+import time
 import re
 import pickle
 import os.path
@@ -73,7 +74,7 @@ def get_sheet(service, sheet, srange):
  #       print('Name, Major:')
  #       for row in values:
  #           # Print columns A and E, which correspond to indices 0 and 4.
- #           print('%s, %s' % (row[1], row[2]))
+ #           print('%s, %s' % (row[1], row[2]))   774034668,
 
 def clear(sheet, service):
     clear = [' ',' ',' ',' ',' ',' ',' ',' ',' ',' ']
@@ -83,9 +84,19 @@ def clear(sheet, service):
     result = service.spreadsheets().values().clear(spreadsheetId=TRADES_SPREADSHEET_ID, range=sheet+'!'+'A2:J', body=body)
     result.execute()
 
+def copy_sheet(service):
+    request = service.spreadsheets().get(spreadsheetId=TRADES_SPREADSHEET_ID, ranges='LastDownload!A:K', includeGridData=False)
+    response = request.execute()
+    sheetId = response['sheets'][0]['properties']['sheetId']
+    body = {
+        'destinationSpreadsheetId' : TRADES_SPREADSHEET_ID
+    }
+    request = service.spreadsheets().sheets().copyTo(spreadsheetId=TRADES_SPREADSHEET_ID, sheetId=sheetId, body=body)
+    response = request.execute()
+
+
 def write_sheet(service, sheet, srange, data):
     resrange = sheet+'!'+srange
-    sheet = service.spreadsheets()
     values = []
     for car in data:
         value = []
@@ -107,6 +118,15 @@ def write_sheet(service, sheet, srange, data):
     }
     result = service.spreadsheets().values().update(spreadsheetId=TRADES_SPREADSHEET_ID, range=resrange, valueInputOption='RAW', body=body)
     result.execute()
+    resrange1 = sheet + '!N1:P1'
+    #resrange1 = resrange1 + 'N1'
+    body = {
+        'values': [[str(datetime.now())]],
+        'range' : resrange1,
+        'majorDimension':'ROWS'
+    }
+    result1 = service.spreadsheets().values().update(spreadsheetId=TRADES_SPREADSHEET_ID, range=resrange1, valueInputOption='USER_ENTERED', body=body)
+    result1.execute()
 
 def fetch_torgi_page():
     page = NamedTemporaryFile()
@@ -341,12 +361,12 @@ def new_cars(cars, ids):
 
 
 if __name__ == '__main__':
+    serv = google_auth()
+    copy_sheet(serv)
     ssl._create_default_https_context = ssl._create_unverified_context
     html_page_name = fetch_torgi_page()
     page_div_tags, page_li_tags = parse_page(html_page_name)
     pages_count = get_page_count(page_li_tags)
-    serv = google_auth()
-    clear('New', serv)
     print('Pages:'+str(pages_count))
     i = 1
     cars=[]
