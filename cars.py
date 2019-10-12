@@ -77,7 +77,6 @@ def get_sheet(service, sheet, srange):
  #           print('%s, %s' % (row[1], row[2]))   774034668,
 
 def clear(sheet, service):
-    clear = [' ',' ',' ',' ',' ',' ',' ',' ',' ',' ']
     body = {
     'range' : sheet+'!'+'A2:J',
     }
