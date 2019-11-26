@@ -24,9 +24,9 @@ TRADES_SPREADSHEET_ID = '1kFqoISnADprv9H71nzTq7vrjF-D5T-7W395C_kCyHOg'
 
 TRADES_SPREADSHEET_ID_OLD = '1bevgPBYdh6-hHqFGKQ6o7cBLsFaY15yHL9PLQPtd3ks'
 
-CARS_URL = 'https://xn----etbpba5admdlad.xn--p1ai/bankrot?categorie_childs%5B0%5D=2&regions%5B0%5D=50&regions%5B1%5D=77&section=%D0%91%D0%B0%D0%BD%D0%BA%D1%80%D0%BE%D1%82%D1%81%D1%82%D0%B2%D0%BE&forms%5B0%5D=public&forms%5B1%5D=auction&page='
+CARS_URL = 'https://xn----etbpba5admdlad.xn--p1ai/search?categorie_childs%5B0%5D=2&regions%5B0%5D=50&regions%5B1%5D=77&trades-section=bankrupt&page='
 
-CARS_EN_URL = 'https://xn----etbpba5admdlad.xn--p1ai/bankrot?categorie_childs%5B0%5D=2&regions%5B0%5D=50&regions%5B1%5D=77&section=%D0%91%D0%B0%D0%BD%D0%BA%D1%80%D0%BE%D1%82%D1%81%D1%82%D0%B2%D0%BE&forms%5B0%5D=public&forms%5B1%5D=auction&page=1'
+CARS_EN_URL = 'https://xn----etbpba5admdlad.xn--p1ai/search?categorie_childs%5B0%5D=2&regions%5B0%5D=50&regions%5B1%5D=77&trades-section=bankrupt&page=1'
 
 vinregex = '[0-9abcdefghjklmnprstuvwxyzABCDEFGHJKLMNPRSTUVWXYZ]{17,20}'
 
