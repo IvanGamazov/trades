@@ -85,6 +85,31 @@ def clear(sheet, service):
     result = service.spreadsheets().values().clear(spreadsheetId=TRADES_SPREADSHEET_ID, range=sheet+'!'+'A2:J', body=body)
     result.execute()
 
+def deleteSheets(service):
+    request = service.spreadsheets().get(spreadsheetId=TRADES_SPREADSHEET_ID)
+    response = request.execute()
+    sheetList = response.get('sheets')
+    while len(sheetList) >10:
+            lastSheetId = sheetList[len(sheetList)-1]['properties']['sheetId']
+            deleteSheet(service, lastSheetId)
+            sheetList.pop()
+
+
+def deleteSheet(service, sheetId):
+    body = {
+            "requests": [
+                            {
+                                "deleteSheet": {
+                                    "sheetId": sheetId
+                                            }
+                         }
+                        ]
+        }
+    response = service.spreadsheets().batchUpdate(spreadsheetId=TRADES_SPREADSHEET_ID, body=body).execute()
+    print(response)
+
+
+
 def copy_sheet(service):
     request = service.spreadsheets().get(spreadsheetId=TRADES_SPREADSHEET_ID, ranges='LastDownload!A:K', includeGridData=False)
     response = request.execute()
@@ -154,6 +179,8 @@ def get_car_info_from_div(div):
     car = fetch_url(car_link)
     car_divs, car_p = parse_car_page(car)
     car_act_price, car_start_price = get_car_price(car_divs)
+    #car_start_price = 0
+    #car_act_price = get_car_price(car_divs)
     auction_type = get_car_auction_type(block_divs)
     d_start = get_date_start(car_p)
     d_end = get_date_end(car_p)
@@ -164,7 +191,7 @@ def get_car_info_from_div(div):
     return {'id': car_id, 'name': car_name, 'act_price': car_act_price, 'start_price': car_start_price, 'start': d_start, 'end':d_end, 'link': car_link, 'type': auction_type, 'vins':vins, 'info': car_info}
 
 def get_vin(car_info, car_name):
-    text3 = car_info+' '+car_name
+    text3 = str(car_info)+' '+str(car_name)
     vins = []
     replacer = ['А', 'A', 'В', 'B', 'Е', 'E', 'К', 'K', 'М', 'M','Н', 'H','О', 'O','Р', 'P','С', 'C','Т', 'T', 'У', 'Y', 'Х', 'X']
     ru = []
@@ -188,8 +215,9 @@ def get_vin(car_info, car_name):
 
 def get_cars_from_torgi(divs):
     car_divs = list(filter(lambda div: 'class' in div.attrs and
-                                         'lot-card-wrapper' in div.get('class'), divs))
+                                         'lot-card' in div.get('class'), divs))
     cars = list(map(lambda div: get_car_info_from_div(div), car_divs))
+    #print(cars)
     return cars
 
 def get_date_start(p_tags):
@@ -209,25 +237,28 @@ def get_date_end(p_tags):
 def get_car_id(div_tags):
     for car_div in div_tags:
         if 'class' in car_div.attrs and \
-                        'component4__header' in car_div.get('class'):
-            return car_div.span.string
+                        'lot-caption' in car_div.get('class'):
+            #print(car_div.b.string)
+            return car_div.b.string
 
 def get_car_link(div_tags):
     for car_div in div_tags:
         if 'class' in car_div.attrs and \
-                        'component4__body' in car_div.get('class'):
+                        'lot-description' in car_div.get('class'):
+            #print(car_div.a.get('href'))
             return car_div.a.get('href')
 
 def get_car_name(div_tags):
     for car_div in div_tags:
         if 'class' in car_div.attrs and \
-                        'component4__body' in car_div.get('class'):
+                        'lot-description' in car_div.get('class'):
+            #print(car_div.h3.string)
             return car_div.h3.string
 
 def get_car_info(div_tags):
     for car_div in div_tags:
         if 'class' in car_div.attrs and \
-                        'component4__body' in car_div.get('class'):
+                        'lot-description' in car_div.get('class'):
                 try:        
                     return car_div.p.string
                 except AttributeError:
@@ -235,14 +266,21 @@ def get_car_info(div_tags):
                      
 
 def get_car_price(div_tags):
+    price_list = [None, None]
     for price_div in div_tags:
         if 'class' in price_div.attrs and \
-                        'new-component1__price' in price_div.get('class'):
-            price_list = list(price_div)
-            if len(price_list)>3:
-                return price_list[1].text, price_list[3].text
+                        'price__value' in price_div.get('class'):
+            prices = list(price_div)
+            if len(prices)>3:
+                price_list[0] = prices[1].text
+                price_list[1] = prices[3].text
             else:
-                return price_list[1].text, price_list[1].text,
+                price_list[0] = prices[1].text
+                price_list[1] = prices[1].text
+    return price_list[0], price_list[1]
+
+
+
 
 def get_car_auction_type(div_tags):
     for car_div in div_tags:
@@ -363,6 +401,7 @@ def new_cars(cars, ids):
 
 if __name__ == '__main__':
     serv = google_auth()
+    deleteSheets(serv)
     copy_sheet(serv)
     ssl._create_default_https_context = ssl._create_unverified_context
     html_page_name = fetch_torgi_page()
