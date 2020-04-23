@@ -1,3 +1,4 @@
+from __future__ import print_function
 import requests
 import sys
 import ssl
@@ -8,16 +9,150 @@ from tempfile import NamedTemporaryFile
 import openpyxl as excel
 import os
 from datetime import datetime, date, time
+import time
 import re
+import pickle
+import os.path
+from googleapiclient.discovery import build
+from google_auth_oauthlib.flow import InstalledAppFlow
+from google.auth.transport.requests import Request
 
-CARS_URL = 'https://xn----etbpba5admdlad.xn--p1ai/bankrot?categorie_childs%5B0%5D=2&regions%5B0%5D=50&regions%5B1%5D=77&section=%D0%91%D0%B0%D0%BD%D0%BA%D1%80%D0%BE%D1%82%D1%81%D1%82%D0%B2%D0%BE&forms%5B0%5D=public&forms%5B1%5D=auction&page='
+# If modifying these scopes, delete the file token.pickle.
+SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
 
-CARS_EN_URL = 'https://xn----etbpba5admdlad.xn--p1ai/bankrot?categorie_childs%5B0%5D=2&regions%5B0%5D=50&regions%5B1%5D=77&section=%D0%91%D0%B0%D0%BD%D0%BA%D1%80%D0%BE%D1%82%D1%81%D1%82%D0%B2%D0%BE&forms%5B0%5D=public&forms%5B1%5D=auction&page=1'
+TRADES_SPREADSHEET_ID = '1kFqoISnADprv9H71nzTq7vrjF-D5T-7W395C_kCyHOg'
+
+TRADES_SPREADSHEET_ID_OLD = '1bevgPBYdh6-hHqFGKQ6o7cBLsFaY15yHL9PLQPtd3ks'
+
+CARS_URL = 'https://xn----etbpba5admdlad.xn--p1ai/search?categorie_childs%5B0%5D=2&regions%5B0%5D=50&regions%5B1%5D=77&trades-section=bankrupt&page='
+
+CARS_EN_URL = 'https://xn----etbpba5admdlad.xn--p1ai/search?categorie_childs%5B0%5D=2&regions%5B0%5D=50&regions%5B1%5D=77&trades-section=bankrupt&page=1'
 
 vinregex = '[0-9abcdefghjklmnprstuvwxyzABCDEFGHJKLMNPRSTUVWXYZ]{17,20}'
 
 
  #-*- coding: utf-8 -*-
+
+
+def google_auth():
+    """Shows basic usage of the Sheets API.
+    Prints values from a sample spreadsheet.
+    """
+    creds = None
+    # The file token.pickle stores the user's access and refresh tokens, and is
+    # created automatically when the authorization flow completes for the first
+    # time.
+    if os.path.exists('token.pickle'):
+        with open('token.pickle', 'rb') as token:
+            creds = pickle.load(token)
+    # If there are no (valid) credentials available, let the user log in.
+    if not creds or not creds.valid:
+        if creds and creds.expired and creds.refresh_token:
+            creds.refresh(Request())
+        else:
+            flow = InstalledAppFlow.from_client_secrets_file(
+                'credentials.json', SCOPES)
+            creds = flow.run_local_server(port=0)
+        # Save the credentials for the next run
+        with open('token.pickle', 'wb') as token:
+            pickle.dump(creds, token)
+
+    service = build('sheets', 'v4', credentials=creds)
+    return service
+
+def get_sheet(service, sheet, srange):
+    # Call the Sheets API
+
+    resrange = sheet+'!'+srange
+
+    sheet = service.spreadsheets()
+    result = sheet.values().get(spreadsheetId=TRADES_SPREADSHEET_ID,
+                                range=resrange).execute()
+    values = result.get('values', [])
+    return values
+ #   if not values:
+ #       print('No data found.')
+ #   else:
+ #       print('Name, Major:')
+ #       for row in values:
+ #           # Print columns A and E, which correspond to indices 0 and 4.
+ #           print('%s, %s' % (row[1], row[2]))   774034668,
+
+def clear(sheet, service):
+    body = {
+    'range' : sheet+'!'+'A2:J',
+    }
+    result = service.spreadsheets().values().clear(spreadsheetId=TRADES_SPREADSHEET_ID, range=sheet+'!'+'A2:J', body=body)
+    result.execute()
+
+def deleteSheets(service):
+    request = service.spreadsheets().get(spreadsheetId=TRADES_SPREADSHEET_ID)
+    response = request.execute()
+    sheetList = response.get('sheets')
+    while len(sheetList) >10:
+            lastSheetId = sheetList[len(sheetList)-1]['properties']['sheetId']
+            deleteSheet(service, lastSheetId)
+            sheetList.pop()
+
+
+def deleteSheet(service, sheetId):
+    body = {
+            "requests": [
+                            {
+                                "deleteSheet": {
+                                    "sheetId": sheetId
+                                            }
+                         }
+                        ]
+        }
+    response = service.spreadsheets().batchUpdate(spreadsheetId=TRADES_SPREADSHEET_ID, body=body).execute()
+    print(response)
+
+
+
+def copy_sheet(service):
+    request = service.spreadsheets().get(spreadsheetId=TRADES_SPREADSHEET_ID, ranges='LastDownload!A:K', includeGridData=False)
+    response = request.execute()
+    sheetId = response['sheets'][0]['properties']['sheetId']
+    body = {
+        'destinationSpreadsheetId' : TRADES_SPREADSHEET_ID
+    }
+    request = service.spreadsheets().sheets().copyTo(spreadsheetId=TRADES_SPREADSHEET_ID, sheetId=sheetId, body=body)
+    response = request.execute()
+
+
+def write_sheet(service, sheet, srange, data):
+    resrange = sheet+'!'+srange
+    values = []
+    for car in data:
+        value = []
+        value.append(car['id'])
+        value.append(car['name'])
+        value.append(car['act_price'])
+        value.append(car['start_price'])
+        value.append(car['start'])
+        value.append(car['end'])
+        value.append(car['link'])
+        value.append(car['type'])
+        value.append(car['vins'])
+        value.append(car['info'])
+        values.append(value)
+    body = {
+    'values': values,
+    'range' : resrange,
+    'majorDimension':'ROWS'
+    }
+    result = service.spreadsheets().values().update(spreadsheetId=TRADES_SPREADSHEET_ID, range=resrange, valueInputOption='RAW', body=body)
+    result.execute()
+    resrange1 = sheet + '!N1:P1'
+    #resrange1 = resrange1 + 'N1'
+    body = {
+        'values': [[str(datetime.now())]],
+        'range' : resrange1,
+        'majorDimension':'ROWS'
+    }
+    result1 = service.spreadsheets().values().update(spreadsheetId=TRADES_SPREADSHEET_ID, range=resrange1, valueInputOption='USER_ENTERED', body=body)
+    result1.execute()
 
 def fetch_torgi_page():
     page = NamedTemporaryFile()
@@ -44,6 +179,8 @@ def get_car_info_from_div(div):
     car = fetch_url(car_link)
     car_divs, car_p = parse_car_page(car)
     car_act_price, car_start_price = get_car_price(car_divs)
+    #car_start_price = 0
+    #car_act_price = get_car_price(car_divs)
     auction_type = get_car_auction_type(block_divs)
     d_start = get_date_start(car_p)
     d_end = get_date_end(car_p)
@@ -54,7 +191,7 @@ def get_car_info_from_div(div):
     return {'id': car_id, 'name': car_name, 'act_price': car_act_price, 'start_price': car_start_price, 'start': d_start, 'end':d_end, 'link': car_link, 'type': auction_type, 'vins':vins, 'info': car_info}
 
 def get_vin(car_info, car_name):
-    text3 = car_info+' '+car_name
+    text3 = str(car_info)+' '+str(car_name)
     vins = []
     replacer = ['А', 'A', 'В', 'B', 'Е', 'E', 'К', 'K', 'М', 'M','Н', 'H','О', 'O','Р', 'P','С', 'C','Т', 'T', 'У', 'Y', 'Х', 'X']
     ru = []
@@ -78,8 +215,9 @@ def get_vin(car_info, car_name):
 
 def get_cars_from_torgi(divs):
     car_divs = list(filter(lambda div: 'class' in div.attrs and
-                                         'lot-card-wrapper' in div.get('class'), divs))
+                                         'lot-card' in div.get('class'), divs))
     cars = list(map(lambda div: get_car_info_from_div(div), car_divs))
+    #print(cars)
     return cars
 
 def get_date_start(p_tags):
@@ -99,25 +237,28 @@ def get_date_end(p_tags):
 def get_car_id(div_tags):
     for car_div in div_tags:
         if 'class' in car_div.attrs and \
-                        'component4__header' in car_div.get('class'):
-            return car_div.span.string
+                        'lot-caption' in car_div.get('class'):
+            #print(car_div.b.string)
+            return car_div.b.string
 
 def get_car_link(div_tags):
     for car_div in div_tags:
         if 'class' in car_div.attrs and \
-                        'component4__body' in car_div.get('class'):
+                        'lot-description' in car_div.get('class'):
+            #print(car_div.a.get('href'))
             return car_div.a.get('href')
 
 def get_car_name(div_tags):
     for car_div in div_tags:
         if 'class' in car_div.attrs and \
-                        'component4__body' in car_div.get('class'):
+                        'lot-description' in car_div.get('class'):
+            #print(car_div.h3.string)
             return car_div.h3.string
 
 def get_car_info(div_tags):
     for car_div in div_tags:
         if 'class' in car_div.attrs and \
-                        'component4__body' in car_div.get('class'):
+                        'lot-description' in car_div.get('class'):
                 try:        
                     return car_div.p.string
                 except AttributeError:
@@ -125,20 +266,30 @@ def get_car_info(div_tags):
                      
 
 def get_car_price(div_tags):
+    price_list = [None, None]
     for price_div in div_tags:
         if 'class' in price_div.attrs and \
-                        'new-component1__price' in price_div.get('class'):
-            price_list = list(price_div)
-            if len(price_list)>3:
-                return price_list[1].text, price_list[3].text
+                        'price__value' in price_div.get('class'):
+            prices = list(price_div)
+            if len(prices)>3:
+                price_list[0] = prices[1].text
+                price_list[1] = prices[3].text
             else:
-                return price_list[1].text, price_list[1].text,
+                price_list[0] = prices[1].text
+                price_list[1] = prices[1].text
+    return price_list[0], price_list[1]
+
+
+
 
 def get_car_auction_type(div_tags):
     for car_div in div_tags:
         if 'class' in car_div.attrs and \
                         'new-component1' in car_div.get('class'):
-            return car_div.a.img.get('data-tooltip')
+            try:
+                return str(car_div.a.svg.get('class'))
+            except AttributeError:
+                return ""
 
 def parse_cars_list(raw_html_file):
     soup = BeautifulSoup(raw_html_file.read(), 'html.parser')
@@ -227,14 +378,14 @@ def put_new_to_excel(cars):
 
 
 
-def read_existing_lots():
-    filename = os.path.abspath('Trades.xlsx')
-    workbook = excel.load_workbook(filename)
+def read_existing_lots(service):
+    rows = get_sheet(service, 'LastDownload', 'A2:A')
     id = []
-    ws = workbook['LastDownload']
-    for row in ws['A2:A'+str(ws.max_row)]:
-        for cell in row:
-            id.append(cell.value)
+    for row in rows:
+        i = 0
+        while i < len(row):
+            id.append(row[i])
+            i = i+1
     return id
 
 def new_cars(cars, ids):
@@ -249,6 +400,9 @@ def new_cars(cars, ids):
 
 
 if __name__ == '__main__':
+    serv = google_auth()
+    deleteSheets(serv)
+    copy_sheet(serv)
     ssl._create_default_https_context = ssl._create_unverified_context
     html_page_name = fetch_torgi_page()
     page_div_tags, page_li_tags = parse_page(html_page_name)
@@ -260,8 +414,12 @@ if __name__ == '__main__':
         print('Page: '+str(i))
         cars.extend(get_cars_on_page(i))
         i = i+1
-    ids = read_existing_lots()
+    ids = read_existing_lots(serv)
     mycars = new_cars(cars, ids)
-    put_new_to_excel(mycars)
-    put_to_excel(cars)
+    clear('New', serv)
+    write_sheet(serv, 'New', 'A2:J'+str(len(mycars)+1), mycars)
+    clear('LastDownload',serv)
+    write_sheet(serv, 'LastDownload', 'A2:J'+str(len(cars)+1), cars)
+    #put_new_to_excel(mycars)
+    #put_to_excel(cars)
     print('Finished!')
