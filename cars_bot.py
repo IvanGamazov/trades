@@ -17,7 +17,7 @@ from googleapiclient.discovery import build
 from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
 import telebot
-from telebot import apihelper
+#3from telebot import apihelper
 
 
 # If modifying these scopes, delete the file token.pickle.
@@ -27,34 +27,31 @@ TRADES_SPREADSHEET_ID = '1kFqoISnADprv9H71nzTq7vrjF-D5T-7W395C_kCyHOg'
 
 TRADES_SPREADSHEET_ID_OLD = '1bevgPBYdh6-hHqFGKQ6o7cBLsFaY15yHL9PLQPtd3ks'
 
+
+
+#CARS_URL = 'https://xn----etbpba5admdlad.xn--p1ai/search?categorie_childs%5B0%5D=2&regions%5B0%5D=50&regions%5B1%5D=77&trades-section=bankrupt&page='
+
+#CARS_EN_URL = 'https://xn----etbpba5admdlad.xn--p1ai/search?categorie_childs%5B0%5D=2&regions%5B0%5D=50&regions%5B1%5D=77&trades-section=bankrupt&page=1'
+
 CARS_URL = 'https://xn----etbpba5admdlad.xn--p1ai/search?categorie_childs%5B0%5D=2&regions%5B0%5D=33&regions%5B1%5D=40&regions%5B2%5D=44&regions%5B3%5D=50&regions%5B4%5D=62&regions%5B5%5D=69&regions%5B6%5D=71&regions%5B7%5D=76&regions%5B8%5D=77&regions%5B9%5D=47&regions%5B10%5D=78&trades-section=bankrupt&page='
 
 CARS_EN_URL = 'https://xn----etbpba5admdlad.xn--p1ai/search?categorie_childs%5B0%5D=2&regions%5B0%5D=33&regions%5B1%5D=40&regions%5B2%5D=44&regions%5B3%5D=50&regions%5B4%5D=62&regions%5B5%5D=69&regions%5B6%5D=71&regions%5B7%5D=76&regions%5B8%5D=77&regions%5B9%5D=47&regions%5B10%5D=78&trades-section=bankrupt&page=1'
+
+AUTODOC = "https://catalogoriginal.autodoc.ru/api/catalogs/original/cars/"
+
+MODS = "/modifications?clientId=375"
 
 vinregex = '[0-9abcdefghjklmnprstuvwxyzABCDEFGHJKLMNPRSTUVWXYZ]{17,20}'
 
 
  #-*- coding: utf-8 -*-
 
-apihelper.proxy = {'https': 'socks5://alexstav_bot:hxhqhyiq@167.71.53.214:1080'}
+#apihelper.proxy = {'https': 'socks5://alexstav_bot:hxhqhyiq@167.71.53.214:1080'}
 bot = telebot.TeleBot("1125563549:AAFVJyN1Em2itQr26fGLCAxXGcizvrxcHlk")
 
 @bot.message_handler(commands=['start', 'help'])
 def send_welcome(message):
 	bot.reply_to(message, "Howdy, how are you doing?")
-
-#@bot.message_handler(func=lambda message: True)
-#def echo_all(message):
-#	bot.reply_to(message, message.text)
-
-@bot.message_handler(commands=['new'])
-def new_cars(message):
-	bot.reply_to(message, "Новые объявления:")
-
-@bot.message_handler(commands=['all'])
-def all_cars(message):
-	bot.send_message(message.chat.id, "Все объявления:")
-
 
 def google_auth():
     """Shows basic usage of the Sheets API.
@@ -102,9 +99,9 @@ def get_sheet(service, sheet, srange):
 
 def clear(sheet, service):
     body = {
-    'range' : sheet+'!'+'A2:J',
+    'range' : sheet+'!'+'A2:N',
     }
-    result = service.spreadsheets().values().clear(spreadsheetId=TRADES_SPREADSHEET_ID, range=sheet+'!'+'A2:J', body=body)
+    result = service.spreadsheets().values().clear(spreadsheetId=TRADES_SPREADSHEET_ID, range=sheet+'!'+'A2:N', body=body)
     result.execute()
 
 def deleteSheets(service):
@@ -133,7 +130,7 @@ def deleteSheet(service, sheetId):
 
 
 def copy_sheet(service):
-    request = service.spreadsheets().get(spreadsheetId=TRADES_SPREADSHEET_ID, ranges='LastDownload!A:K', includeGridData=False)
+    request = service.spreadsheets().get(spreadsheetId=TRADES_SPREADSHEET_ID, ranges='LastDownload!A:N', includeGridData=False)
     response = request.execute()
     sheetId = response['sheets'][0]['properties']['sheetId']
     body = {
@@ -158,6 +155,10 @@ def write_sheet(service, sheet, srange, data):
         value.append(car['type'])
         value.append(car['vins'])
         value.append(car['info'])
+        value.append(car['brand'])
+        value.append(car['model'])
+        value.append(car['carprod'])
+        value.append(car['cardesc'])
         values.append(value)
     body = {
     'values': values,
@@ -207,10 +208,11 @@ def get_car_info_from_div(div):
     d_start = get_date_start(car_p)
     d_end = get_date_end(car_p)
     vins = get_vin(car_info, car_name)
+    cardesc = get_car_by_vin(vins)
     #d_start =
     #d_end = 
     #trade_place = 
-    return {'id': car_id, 'name': car_name, 'act_price': car_act_price, 'start_price': car_start_price, 'start': d_start, 'end':d_end, 'link': car_link, 'type': auction_type, 'vins':vins, 'info': car_info}
+    return {'id': car_id, 'name': car_name, 'act_price': car_act_price, 'start_price': car_start_price, 'start': d_start, 'end':d_end, 'link': car_link, 'type': auction_type, 'vins':vins, 'info': car_info, 'brand':cardesc[0], 'model':cardesc[1], 'carprod': cardesc[2], 'cardesc':cardesc[3]}
 
 def get_vin(car_info, car_name):
     text3 = str(car_info)+' '+str(car_name)
@@ -303,10 +305,39 @@ def get_car_price(div_tags):
             #    price_list[0] = prices[1].text
             #    price_list[1] = prices[1].text
     #print(prices)
+    if len(prices)<2:
+        prices.append(prices[0])
     return prices[0], prices[1]
 
-
-
+def get_car_by_vin(vin):
+    vin1 = []
+    print(vin)
+    if len(vin)>17:
+        vin1 = vin[2:19]
+    else:
+        vin1 = vin
+    url = AUTODOC+vin1+MODS
+    ssl._create_default_https_context = ssl._create_unverified_context
+    carbrand = ""
+    carname = ""
+    carproddate = ""
+    caragg = ""
+    print(vin1)
+    if len(vin1)>3:
+        with requests.get(url) as res:
+            print(res.status_code)
+            if res.status_code == 200:
+                car = res.json()['commonAttributes']
+                for elem in car:
+                    if elem['key']=="Brand":
+                        carbrand = elem['value']
+                    if elem['key']=="Name":
+                        carname = elem['value']
+                    if elem['key']=="Date":
+                        carproddate = elem['value']
+                    if elem['key']=="aggregates":
+                        caragg = elem['value']
+    return carbrand, carname, carproddate, caragg
 
 def get_car_auction_type(div_tags):
     for car_div in div_tags:
@@ -340,6 +371,14 @@ def parse_car_page(raw_html_file):
     return div_tags, p_tags
 
 
+#def get_page_count(divs):
+#    pages_list = list(filter(lambda li: 'class' in li.attrs and 'page-item' in li.get('class'), divs))
+   # pagination = list(filter(lambda div: 'class' in div.attrs and 'pagination' in div.get('class'), divs))
+   # pages_count = len(pagination.ul.find_all('li'))
+   # return pages_count
+    #return len(pages_list)-2
+
+
 def get_page_count(divs):
     pages_list = list(filter(lambda li: 'class' in li.attrs and 'page-item' in li.get('class'), divs))
     litags = []
@@ -356,57 +395,6 @@ def get_cars_on_page(page):
     cars_on_page = get_cars_from_torgi(page_div_tags)
     return cars_on_page
 
-def put_to_excel(cars):
-    filename = os.path.abspath('Trades.xlsx')
-    workbook = excel.load_workbook(filename)
-    ws = workbook['LastDownload']
-    target = workbook.copy_worksheet(ws)
-    target.title = 'Download'+str(datetime.date(datetime.today()))
-    for row in ws['A2:J'+str(ws.max_row)]:
-        for cell in row:
-            cell.value = None
-    row = 2 
-    for car in cars:
-        ws.cell(row=row, column=1, value=car['id'])
-        ws.cell(row=row, column=2, value=car['name'])
-        ws.cell(row=row, column=3, value=car['act_price'])
-        ws.cell(row=row, column=4, value=car['start_price'])
-        ws.cell(row=row, column=5, value=car['start'])
-        ws.cell(row=row, column=6, value=car['end'])
-        ws.cell(row=row, column=7, value=car['link'])
-        ws.cell(row=row, column=8, value=car['type'])
-        ws.cell(row=row, column=9, value=car['vins'])
-        ws.cell(row=row, column=10, value=car['info'])
-        row = row +1
-    workbook.save(filename)
-    workbook.close()
-
-
-def put_new_to_excel(cars):
-    filename = os.path.abspath('Trades.xlsx')
-    workbook = excel.load_workbook(filename)
-    ws = workbook['New']
-    for row in ws['A2:J'+str(ws.max_row)]:
-        for cell in row:
-            cell.value = None
-    row = 2 
-    for car in cars:
-        ws.cell(row=row, column=1, value=car['id'])
-        ws.cell(row=row, column=2, value=car['name'])
-        ws.cell(row=row, column=3, value=car['act_price'])
-        ws.cell(row=row, column=4, value=car['start_price'])
-        ws.cell(row=row, column=5, value=car['start'])
-        ws.cell(row=row, column=6, value=car['end'])
-        ws.cell(row=row, column=7, value=car['link'])
-        ws.cell(row=row, column=8, value=car['type'])
-        ws.cell(row=row, column=9, value=car['vins'])
-        ws.cell(row=row, column=10, value=car['info'])
-        row = row +1
-    workbook.save(filename)
-    workbook.close()
-
-
-
 def read_existing_lots(service):
     rows = get_sheet(service, 'LastDownload', 'A2:A')
     id = []
@@ -417,6 +405,16 @@ def read_existing_lots(service):
             i = i+1
     return id
 
+def read_existing_cars(service):
+    rows = get_sheet(service, 'LastDownload', 'A2:N')
+    return rows
+
+def read_new_cars(service):
+    rows = get_sheet(service, 'New', 'A2:N')
+    return rows
+
+
+
 def new_cars(cars, ids):
     newcars =[]
     for car in cars:
@@ -426,9 +424,9 @@ def new_cars(cars, ids):
             newcars.append(car)
     return newcars
 
-
-
-if __name__ == '__main__':
+@bot.message_handler(commands=['collect'])
+def collect_cars(message):
+    bot.send_message(message.chat.id, "Все объявления:")
     serv = google_auth()
     deleteSheets(serv)
     copy_sheet(serv)
@@ -436,19 +434,68 @@ if __name__ == '__main__':
     html_page_name = fetch_torgi_page()
     page_div_tags, page_li_tags = parse_page(html_page_name)
     pages_count = get_page_count(page_li_tags)
-    print('Pages:'+str(pages_count))
+    bot.send_message(message.chat.id,'Страниц: '+str(pages_count))
     i = 1
     cars=[]
     while i <= pages_count:
-        print('Page: '+str(i))
+        bot.send_message(message.chat.id, 'Обрабатываю страницу : '+str(i))
         cars.extend(get_cars_on_page(i))
         i = i+1
     ids = read_existing_lots(serv)
     mycars = new_cars(cars, ids)
     clear('New', serv)
-    write_sheet(serv, 'New', 'A2:J'+str(len(mycars)+1), mycars)
+    write_sheet(serv, 'New', 'A2:N'+str(len(mycars)+1), mycars)
     clear('LastDownload',serv)
-    write_sheet(serv, 'LastDownload', 'A2:J'+str(len(cars)+1), cars)
-    #put_new_to_excel(mycars)
-    #put_to_excel(cars)
-    print('Finished!')
+    write_sheet(serv, 'LastDownload', 'A2:N'+str(len(cars)+1), cars)
+    bot.send_message(message.chat.id,'Всего объявлений: '+str(len(cars)))
+    bot.send_message(message.chat.id,'Новых объявлений: '+str(len(mycars)))
+
+@bot.message_handler(commands=['allcars'])
+def all_cars(message):
+    serv = google_auth()
+    ssl._create_default_https_context = ssl._create_unverified_context
+    cars = read_existing_cars(serv)
+    bot.send_message(message.chat.id, 'Всего объявлений: '+str(len(cars)))
+    bot.send_message(message.chat.id, 'https://docs.google.com/spreadsheets/d/1kFqoISnADprv9H71nzTq7vrjF-D5T-7W395C_kCyHOg/edit#gid=2059968966')
+
+
+@bot.message_handler(commands=['newcars'])
+def newcars(message):
+    serv = google_auth()
+    ssl._create_default_https_context = ssl._create_unverified_context
+    cars = read_new_cars(serv)
+    bot.send_message(message.chat.id, 'Всего объявлений: '+str(len(cars)))
+    for car in cars:
+        if len(car)>11:
+            try:
+                bot.send_message(message.chat.id, 'Объявление: ' + car[0] + '\nНазвание: ' + car[1] + '\nЦена: ' + car[2] + '\nМодель: ' + car[11] + '\nВыпущена: ' + car[12] + '\nСсылка: ' + car[6])
+            except:
+                bot.send_message(message.chat.id, 'Объявление: ' + car[0] + '\nНазвание: ' + car[1] + '\nЦена: ' + car[2] + '\nМодель: ' + car[11] + '\nСсылка: ' + car[6])
+        else:
+            bot.send_message(message.chat.id, 'Объявление: ' + car[0] + '\nНазвание: ' + car[1] + '\nЦена: ' + car[2] + '\nСсылка: ' + car[6])
+        time.sleep(3.1)
+    bot.send_message(message.chat.id,'Это все объявления на данный момент')
+
+@bot.message_handler(commands=['status'])
+def status(message):
+    serv = google_auth()
+    ssl._create_default_https_context = ssl._create_unverified_context
+    lastupd = get_sheet(serv, 'LastDownload', 'N1')
+    bot.send_message(message.chat.id, 'Последнее обновление: '+str(lastupd[0][0]))
+
+
+
+
+bot.polling()
+
+####
+#Если вы хотите дописать или залить новую версию бота, то введите команду:
+
+#sudo systemctl stop bot
+
+#Провидите все необходимые манипуляции. А потом введите следующие команды, чтобы он опять заработал:
+
+#sudo systemctl daemon-reload
+#sudo systemctl start bot
+#sudo systemctl status bot
+###
