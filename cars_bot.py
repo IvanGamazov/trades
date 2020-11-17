@@ -39,7 +39,7 @@ CARS_EN_URL = 'https://xn----etbpba5admdlad.xn--p1ai/search?categorie_childs%5B0
 
 AUTODOC = "https://catalogoriginal.autodoc.ru/api/catalogs/original/cars/"
 
-MODS = "/modifications?clientId=375"
+MODS = "/modifications"
 
 vinregex = '[0-9abcdefghjklmnprstuvwxyzABCDEFGHJKLMNPRSTUVWXYZ]{17,20}'
 
@@ -311,7 +311,6 @@ def get_car_price(div_tags):
 
 def get_car_by_vin(vin):
     vin1 = []
-    print(vin)
     if len(vin)>17:
         vin1 = vin[2:19]
     else:
@@ -322,10 +321,9 @@ def get_car_by_vin(vin):
     carname = ""
     carproddate = ""
     caragg = ""
-    print(vin1)
     if len(vin1)>3:
-        with requests.get(url) as res:
-            print(res.status_code)
+        try:
+            res = requests.get(url)
             if res.status_code == 200:
                 car = res.json()['commonAttributes']
                 for elem in car:
@@ -337,6 +335,8 @@ def get_car_by_vin(vin):
                         carproddate = elem['value']
                     if elem['key']=="aggregates":
                         caragg = elem['value']
+        except AttributeError as err:
+            print(err)
     return carbrand, carname, carproddate, caragg
 
 def get_car_auction_type(div_tags):
